@@ -11,6 +11,7 @@ cursordata::cursordata(QWidget *parent)
 }
 
 
+
 void cursordata::setdata(){
     ui->label_2->setText(QString::number(curs_vec[0].xVal));
     ui->label_8->setText(QString::number(curs_vec[0].yVal));
@@ -26,11 +27,10 @@ void cursordata::setdata(){
 void cursordata::updateValue(double tVal, double yVal)
 {
     curs_vec[m_currentCursorIdx].xVal = (float)tVal;
-    curs_vec[m_currentCursorIdx].yVal = (int)yVal; //
+    curs_vec[m_currentCursorIdx].yVal = (float)yVal; //
 
     setdata();
 
-    m_currentCursorIdx = (m_currentCursorIdx + 1) % 2;
 }
 
 cursordata::~cursordata()

@@ -12,7 +12,7 @@ class cursordata;
 struct cursors{
     QCPItemStraightLine*line=nullptr;
     QString text;
-    int yVal;
+    float yVal;
     float xVal;
 };
 
@@ -25,11 +25,11 @@ public:
     cursors curs_vec[2];
     void setdata();
     void updateValue(double tVal, double yVal);
+    int m_currentCursorIdx;
     ~cursordata();
 
 private:
     Ui::cursordata *ui;
-    int m_currentCursorIdx;
 };
 
 #endif // CURSORDATA_H

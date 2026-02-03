@@ -4,7 +4,6 @@
 #include <QMainWindow>
 #include <QTimer>
 #include <QSerialPort>
-#include <algorithm>
 #include "portconfig.h"
 #include "graphoptions.h"
 #include "cursordata.h"
@@ -31,7 +30,7 @@ private slots:
     void on_btnGraphOptions_clicked();  // Opens graphoptions
     void on_btnExport_clicked();        // Opens exportdlg
     void on_btnClear_clicked();
-
+    void applyGraphSettings();
     void onGraphClicked(QMouseEvent *event); // for cursors
     void updatePlot();
     void on_checkCursors_checkStateChanged(const Qt::CheckState &arg1);
@@ -51,6 +50,7 @@ private:
     QVector<double> m_plotData;
     double m_currentTime;
     bool m_isConnected;
+
 
     QCPItemStraightLine* m_cursors[2];
     QCPItemText* m_cursorLabels[2];
