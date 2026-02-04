@@ -1,8 +1,7 @@
-8-bit serial data real-time plotter.
+Born as a specialized spin-off of [this project](https://github.com/juankti/plot-serial), this software is optimized for high-throughput sensor data visualization. It converts 8-bit binary streams into real-time voltage plots (0-5V) with minimal latency, prioritizing execution speed and bare-metal efficiency over generic compatibility.
 
-Born as a spin-off of [this project](), this software converts serial communication 8-bit raw binary data to a voltage value ranging from 0 to 5 V.
+While the application supports standard serial port configurations, it is specifically architected to handle the ATmega328p running at its hardware limits. By driving the ADC at 1 MHz and the USART interface at 1 Mbps, the system sustains a throughput of approximately 77,000 samples per second (77 kSPS). An example of this implementation is [shown here](https://github.com/juankti/atmega328p_adc_driver) An optimized rendering pipeline ensures fluid visualization of these high-speed data streams without buffer saturation.
 
-Initially designed for effectively seeing real-time analog sensors data using a ATmega328p ADC and its USART as a driver. While basic port settings are allowed, the software is best suited for a bare-metal application like [shown in this repository](), where the 1MHz-clocked ADC sends data through USART at 1Mbps.
+Essential analytical tools are built directly into the interface. Users can manipulate grid settings, adjust signal ranges, and perform precise signal analysis using dual cursors for real-time voltage and time measurements. For documentation and post-processing, the software includes robust export capabilities, allowing the graph to be saved as high-resolution images or raw CSV datasets.
 
-Graph functions as clearing, grid, ranges, labels, clearing up to cursor measurements were developed.
-Furthermore, the software allows exporting the graph as a image or as a .csv file, with various options included.
+Certain architectural trade-offs were necessary to achieve this performance profile. The driver utilizes an 8-bit protocol, discarding the two least significant bits to maximize throughput, which limits graph resolution to 19.5 mV steps. Communication relies exclusively on raw binary values (0x00–0xFF) rather than ASCII, rendering the system incompatible with standard Serial.print text debugging. Furthermore, the current iteration is designed for single-channel plotting with a fixed 0-5V reference voltage.
