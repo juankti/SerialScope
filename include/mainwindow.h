@@ -44,7 +44,7 @@ private:
 
     portconfig* m_pConfigDlg=nullptr;
     graphoptions* m_pGraphOptDlg=nullptr;
-    exportdlg* m_pExportDlg=nullptr;
+
     cursordata* m_pCursorDlg=nullptr;
 
     QVector<double> m_plotData;

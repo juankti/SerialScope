@@ -70,10 +70,7 @@ void MainWindow::updatePlot()
 
     if (incomingRaw.empty()) return;
 
-    if (incomingRaw.size() >250) {
-        std::vector<double> recent(incomingRaw.end() - 250, incomingRaw.end());
-        incomingRaw = recent;
-    }
+
 
     QVector<double> yVec;
     QVector<double> xVec;
@@ -82,7 +79,8 @@ void MainWindow::updatePlot()
 
     float sampleRate = m_pConfigDlg->getBaud()/10;
 
-    const double TIME_STEP = 12.0/sampleRate; // for matching with actual time
+    // Calculamos el tiempo real por muestra asumiendo envío continuo
+    const double TIME_STEP = 1.0/sampleRate;
 
     for (double val : incomingRaw) {
         yVec.append(val);
@@ -183,8 +181,8 @@ void MainWindow::on_btnExport_clicked() {
         qtVolts.append(it->value); // The voltage Y-value
     }
 
-    m_pExportDlg = new exportdlg(this,ui->grafica,&qtTime,&qtVolts,m_pGraphOptDlg);
-    m_pExportDlg->exec();
+    exportdlg dlg(this,ui->grafica,&qtTime,&qtVolts,m_pGraphOptDlg);
+    dlg.exec();
 }
 
 void MainWindow::applyGraphSettings()

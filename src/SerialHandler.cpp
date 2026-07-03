@@ -14,6 +14,8 @@ void serialhandler::connectPort(QString portname,int baudrate){
 
     m_serial.setPortName(portname);
     m_serial.setBaudRate(baudrate);
+
+    // default configs
     m_serial.setDataBits(QSerialPort::Data8);
     m_serial.setParity(QSerialPort::NoParity);
     m_serial.setStopBits(QSerialPort::OneStop);
