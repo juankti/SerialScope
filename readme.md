@@ -4,4 +4,8 @@ While the application supports standard serial port configurations, it is specif
 
 Essential analytical tools are built directly into the interface. Users can manipulate grid settings, adjust signal ranges, and perform precise signal analysis using dual cursors for real-time voltage and time measurements. For documentation and post-processing, the software includes robust export capabilities, allowing the graph to be saved as high-resolution images or raw CSV datasets.
 
+<<<<<<< HEAD
 Certain architectural trade-offs were necessary to achieve this performance profile. The driver utilizes an 8-bit protocol, discarding the two least significant bits to maximize throughput, which limits graph resolution to 19.5 mV steps. Communication relies exclusively on raw binary values (0x00–0xFF) rather than ASCII, rendering the system incompatible with standard Serial.print text debugging. Furthermore, the current iteration is designed for single-channel plotting with a fixed 0-5V reference voltage.
+=======
+Certain architectural trade-offs were necessary to achieve this performance profile. The driver utilizes an 8-bit protocol, discarding the two least significant bits to maximize throughput, which limits graph resolution to 19.5 mV steps. Communication relies exclusively on raw binary values (0x00–0xFF) rather than ASCII, rendering the system incompatible with standard Serial.print text debugging. Furthermore, the current iteration is designed for single-channel plotting with a fixed 0-5V reference voltage.
+>>>>>>> f2c3e1a77b026217657e762b28aaa8de0ab3a375

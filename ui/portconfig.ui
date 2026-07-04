@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <ui version="4.0">
  <class>portconfig</class>
  <widget class="QDialog" name="portconfig">
@@ -115,7 +115,7 @@
        <item>
         <widget class="QLabel" name="label_2">
          <property name="text">
-          <string/>
+          <string />
          </property>
          <property name="alignment">
           <set>Qt::AlignmentFlag::AlignCenter</set>
@@ -155,7 +155,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QLineEdit" name="leBaud"/>
+          <widget class="QLineEdit" name="leBaud" />
          </item>
         </layout>
        </item>
@@ -172,7 +172,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QComboBox" name="comboBaud_2"/>
+          <widget class="QComboBox" name="comboBaud_2" />
          </item>
         </layout>
        </item>
@@ -189,7 +189,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QComboBox" name="comboBaud_3"/>
+          <widget class="QComboBox" name="comboBaud_3" />
          </item>
         </layout>
        </item>
@@ -206,7 +206,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QComboBox" name="comboBaud_4"/>
+          <widget class="QComboBox" name="comboBaud_4" />
          </item>
         </layout>
        </item>
@@ -223,13 +223,42 @@
           </widget>
          </item>
          <item>
-          <widget class="QComboBox" name="comboBaud_5"/>
+          <widget class="QComboBox" name="comboBaud_5" />
          </item>
         </layout>
        </item>
       </layout>
      </item>
      <item>
+             <widget class="QGroupBox" name="groupOscope">
+              <property name="title"><string>Oscilloscope Settings</string></property>
+              <layout class="QFormLayout" name="formLayout_oscope">
+               <item row="0" column="0">
+                <widget class="QLabel" name="label_vref">
+                 <property name="text"><string>V-Ref:</string></property>
+                </widget>
+               </item>
+               <item row="0" column="1">
+                <widget class="QComboBox" name="comboVRef">
+                 <item><property name="text"><string>5.0</string></property></item>
+                 <item><property name="text"><string>3.3</string></property></item>
+                 <item><property name="text"><string>1.1</string></property></item>
+                </widget>
+               </item>
+               <item row="1" column="0">
+                <widget class="QLabel" name="label_mode">
+                 <property name="text"><string>Channels:</string></property>
+                </widget>
+               </item>
+               <item row="1" column="1">
+                <widget class="QComboBox" name="comboChannels">
+                 <item><property name="text"><string>1 Channel</string></property></item>
+                 <item><property name="text"><string>2 Channels</string></property></item>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item><item>
       <layout class="QHBoxLayout" name="horizontalLayout_7">
        <item>
         <spacer name="horizontalSpacer_3">
@@ -270,6 +299,6 @@
    </item>
   </layout>
  </widget>
- <resources/>
- <connections/>
+ <resources />
+ <connections />
 </ui>

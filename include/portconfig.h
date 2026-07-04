@@ -21,6 +21,8 @@ public:
     void portSelected(QListWidgetItem*item);
     void viewconfigs(bool);
     int getBaud();
+    double getVRef() const;
+    bool isDualChannel() const;
 private slots:
     void on_btnPorts_clicked();
     void on_pushButton_clicked();
@@ -29,6 +31,8 @@ private:
     Ui::portconfig *ui;
     QList<QSerialPortInfo> devices;
     QSerialPort*port;
+    double m_vref = 5.0;
+    bool m_dualChannel = false;
 };
 
 #endif // PORTCONFIG_H

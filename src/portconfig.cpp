@@ -101,6 +101,14 @@ void portconfig::on_pushButton_clicked()
                 } else{
                     QMessageBox::warning(this,"","Could not open "+ port->portName()+".");
         }
+        
+        // Save the oscilloscope settings
+        QString vrefStr = ui->comboVRef->currentText();
+        if (vrefStr == "5.0") m_vref = 5.0;
+        else if (vrefStr == "3.3") m_vref = 3.3;
+        else if (vrefStr == "1.1") m_vref = 1.1;
+        
+        m_dualChannel = (ui->comboChannels->currentIndex() == 1);
     }
 }
 
@@ -109,5 +117,10 @@ int portconfig::getBaud(){
     return ui->leBaud->text().toInt();
 }
 
+double portconfig::getVRef() const {
+    return m_vref;
+}
 
-
+bool portconfig::isDualChannel() const {
+    return m_dualChannel;
+}

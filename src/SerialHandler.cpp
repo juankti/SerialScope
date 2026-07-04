@@ -1,7 +1,8 @@
 #include "serialhandler.h"
 #include <QDebug>
 
-serialhandler::serialhandler(ringbuffer* buffer, QObject* parent) :QObject(parent), m_buffer(buffer){
+serialhandler::serialhandler(ringbuffer* bufferCH1, ringbuffer* bufferCH2, QObject* parent) 
+    : QObject(parent), m_bufferCH1(bufferCH1), m_bufferCH2(bufferCH2){
     connect(&m_serial, &QSerialPort::readyRead,this,&serialhandler::onReadyRead);
 }
 
@@ -22,7 +23,9 @@ void serialhandler::connectPort(QString portname,int baudrate){
     m_serial.setFlowControl(QSerialPort::NoFlowControl);
 
     if(m_serial.open(QIODevice::ReadOnly)){
-        m_buffer->clear();
+        if (m_bufferCH1) m_bufferCH1->clear();
+        if (m_bufferCH2) m_bufferCH2->clear();
+        m_ch1Next = true;
         qDebug()<<" connected to "<<portname;
     }
 }
@@ -36,8 +39,17 @@ void serialhandler::onReadyRead(){
 
     for (char byte: data){
         unsigned char val = static_cast<unsigned char>(byte);
-        double voltage =( val/255.0)*5;
+        double voltage =( val/255.0)*m_vref;
 
-        if (m_buffer) m_buffer->push(voltage);
+        if (m_dualChannel) {
+            if (m_ch1Next) {
+                if (m_bufferCH1) m_bufferCH1->push(voltage);
+            } else {
+                if (m_bufferCH2) m_bufferCH2->push(voltage);
+            }
+            m_ch1Next = !m_ch1Next;
+        } else {
+            if (m_bufferCH1) m_bufferCH1->push(voltage);
+        }
     }
 }

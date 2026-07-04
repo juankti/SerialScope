@@ -10,6 +10,7 @@ public:
     void push(double value);
     std::vector<double> getLast(size_t count) const;
     std::vector<double> getAll() const;
+    std::vector<double> getAndClear();
     void clear();
     size_t getSize() const {return m_size;}
 
@@ -17,6 +18,7 @@ private:
     std::vector<double> m_buffer;
     size_t m_size;
     size_t m_head;
+    size_t m_count;
     mutable std::mutex m_mutex;
 };
 
