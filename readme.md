@@ -1,11 +1,27 @@
-Born as a specialized spin-off of [this project](https://github.com/juankti/plot-serial), this software is optimized for high-throughput sensor data visualization. It converts 8-bit binary streams into real-time voltage plots (0-5V) with minimal latency, prioritizing execution speed and bare-metal efficiency over generic compatibility.
+# SerialScope
 
-While the application supports standard serial port configurations, it is specifically architected to handle the ATmega328p running at its hardware limits. By driving the ADC at 1 MHz and the USART interface at 1 Mbps, the system sustains a throughput of approximately 77,000 samples per second (77 kSPS). An example of this implementation is [shown here](https://github.com/juankti/atmega328p_adc_driver) An optimized rendering pipeline ensures fluid visualization of these high-speed data streams without buffer saturation.
+A real-time software oscilloscope for microcontroller diagnostics, built within **Qt Framework**. 
 
-Essential analytical tools are built directly into the interface. Users can manipulate grid settings, adjust signal ranges, and perform precise signal analysis using dual cursors for real-time voltage and time measurements. For documentation and post-processing, the software includes robust export capabilities, allowing the graph to be saved as high-resolution images or raw CSV datasets.
+Designed to overcome the latency and overhead limitations of standard serial monitors, SerialScope abandons ASCII string transmission in favor of **raw binary data streaming**. This allows the software to process and plot data streams at extreme speeds (up to 1,000,000+ baud) without dropping samples or freezing the UI, making it ideal for visualizing high-frequency ADC captures.
 
-<<<<<<< HEAD
-Certain architectural trade-offs were necessary to achieve this performance profile. The driver utilizes an 8-bit protocol, discarding the two least significant bits to maximize throughput, which limits graph resolution to 19.5 mV steps. Communication relies exclusively on raw binary values (0x00–0xFF) rather than ASCII, rendering the system incompatible with standard Serial.print text debugging. Furthermore, the current iteration is designed for single-channel plotting with a fixed 0-5V reference voltage.
-=======
-Certain architectural trade-offs were necessary to achieve this performance profile. The driver utilizes an 8-bit protocol, discarding the two least significant bits to maximize throughput, which limits graph resolution to 19.5 mV steps. Communication relies exclusively on raw binary values (0x00–0xFF) rather than ASCII, rendering the system incompatible with standard Serial.print text debugging. Furthermore, the current iteration is designed for single-channel plotting with a fixed 0-5V reference voltage.
->>>>>>> f2c3e1a77b026217657e762b28aaa8de0ab3a375
+##  Key Features
+
+*   **Real-Time Rendering Engine:** Engineered using `QCustomPlot` and a decoupled architecture that separates the heavy I/O serial polling from the GUI event loop, maintaining a fluid 60 FPS plotting experience even under massive data loads.
+*   **Hardware-like Oscilloscope Toolkit:** 
+    *   **Triggering System:** Stabilize periodic signals using Rising Edge, Falling Edge, and custom Voltage Level triggers. Features a dead-time simulated holdoff to prevent rendering saturation.
+    *   **Rolling Mode:** Continuous, unbuffered data scrolling for live monitoring.
+    *   **Dynamic Scaling:** Adjustable Time/Div (from 1 s down to 100 µs resolution) and Volts/Div with customizable Y-Offset and V_ref anchoring.
+*   **Automated Signal Analytics:** On-the-fly math algorithms calculate $V_{max}$, $V_{min}$, Peak-to-Peak Voltage ($V_{pp}$), and perform highly accurate frequency estimation via precise zero-crossing timestamp tracking.
+*   **Essential analytical tools** are built directly into the interface. Users can manipulate grid settings, adjust signal ranges, and perform precise signal analysis using dual cursors for real-time voltage and time measurements. For documentation and post-processing, the software includes robust export capabilities, allowing the graph to be saved as high-resolution images or raw CSV datasets.
+
+##  Architecture & Technical Highlights
+
+This project emphasizes robust memory management, multithreading, and optimization:
+
+*   **Thread-Safe Ring Buffer:** Implements a custom, mutex-locked circular buffer tailored for high-frequency interrupts. It features an atomic `getAndClear()` routine to extract and reset memory blocks simultaneously, completely eliminating race conditions and data-drop during rapid thread context switching.
+*   **Decoupled I/O & UI:** The `SerialHandler` runs entirely asynchronous to the main UI. Data is safely pushed into the ring buffer via serial interrupts, while a dedicated `QTimer` acts as a rendering orchestrator, pulling chunks of data at fixed intervals. 
+*   **Raw Binary Protocol:** By transmitting raw 8-bit values (`0x00` - `0xFF`) instead of formatted strings (e.g., `"1023\n"`), the system cuts communication overhead by more than 75%. The software dynamically scales these 8-bit values back to physical voltages based on user-defined reference parameters.
+
+##  Microcontroller Integration
+
+Instead of using string-based printing (like `Serial.print()`), the MCU must send the raw 8-bit ADC readings directly over the serial port. The baud rate must then be matched in the software settings and data will instantly appear on the grid.
