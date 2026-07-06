@@ -3,12 +3,12 @@
 
 #include <QObject>
 #include <QSerialPort>
-#include "ringbuffer.h"
+#include "rawringbuffer.h"
 
 class serialhandler: public QObject{
     Q_OBJECT
 public:
-    explicit serialhandler(ringbuffer* bufferCH1, ringbuffer* bufferCH2, QObject* parent =nullptr);
+    explicit serialhandler(rawringbuffer* bufferCH1, rawringbuffer* bufferCH2, QObject* parent =nullptr);
     ~serialhandler();
 
     QSerialPort* rawPort() {return &m_serial;}
@@ -24,8 +24,8 @@ private slots:
 
 private:
     QSerialPort m_serial;
-    ringbuffer* m_bufferCH1;
-    ringbuffer* m_bufferCH2;
+    rawringbuffer* m_bufferCH1;
+    rawringbuffer* m_bufferCH2;
     double m_vref = 5.0;
     bool m_dualChannel = false;
     bool m_ch1Next = true;

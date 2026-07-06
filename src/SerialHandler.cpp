@@ -1,7 +1,7 @@
 #include "serialhandler.h"
 #include <QDebug>
 
-serialhandler::serialhandler(ringbuffer* bufferCH1, ringbuffer* bufferCH2, QObject* parent) 
+serialhandler::serialhandler(rawringbuffer* bufferCH1, rawringbuffer* bufferCH2, QObject* parent) 
     : QObject(parent), m_bufferCH1(bufferCH1), m_bufferCH2(bufferCH2){
     connect(&m_serial, &QSerialPort::readyRead,this,&serialhandler::onReadyRead);
 }
@@ -39,18 +39,17 @@ void serialhandler::onReadyRead(){
     QByteArray data = m_serial.readAll();
 
     for (char byte: data){
-        unsigned char val = static_cast<unsigned char>(byte);
-        double voltage =( val/255.0)*m_vref;
+        uint8_t val = static_cast<uint8_t>(byte);
 
         if (m_dualChannel) {
             if (m_ch1Next) {
-                if (m_bufferCH1) m_bufferCH1->push(voltage);
+                if (m_bufferCH1) m_bufferCH1->push(val);
             } else {
-                if (m_bufferCH2) m_bufferCH2->push(voltage);
+                if (m_bufferCH2) m_bufferCH2->push(val);
             }
             m_ch1Next = !m_ch1Next;
         } else {
-            if (m_bufferCH1) m_bufferCH1->push(voltage);
+            if (m_bufferCH1) m_bufferCH1->push(val);
         }
     }
 }

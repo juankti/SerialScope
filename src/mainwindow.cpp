@@ -12,22 +12,56 @@ MainWindow::MainWindow(QWidget *parent)
     ui->grafica->setInteraction(QCP::iRangeDrag, false);
     ui->grafica->setInteraction(QCP::iRangeZoom, false);
 
+    qRegisterMetaType<QVector<double>>("QVector<double>");
+
+    m_fftWindow = new QMainWindow(this);
+    m_fftWindow->setWindowTitle("FFT");
+    m_fftWindow->resize(600, 400);
+    m_fftPlot = new QCustomPlot(m_fftWindow);
+    m_fftWindow->setCentralWidget(m_fftPlot);
+
+    m_fftPlot->setInteraction(QCP::iRangeDrag, true);
+    m_fftPlot->setInteraction(QCP::iRangeZoom, true);
+    m_fftPlot->axisRect()->setRangeDrag(Qt::Horizontal);
+    m_fftPlot->axisRect()->setRangeZoom(Qt::Horizontal);
+
+    m_rawBuffer = new rawringbuffer(100000);
+    m_rawBufferCH2 = new rawringbuffer(100000);
     m_ringBuffer = new ringbuffer(100000);
     m_ringBufferCH2 = new ringbuffer(100000);
+    m_ringBufferFilt = new ringbuffer(100000);
+    m_ringBufferCH2Filt = new ringbuffer(100000);
 
-    m_serialHandler = new serialhandler(m_ringBuffer, m_ringBufferCH2, this);
+    m_serialHandler = new serialhandler(m_rawBuffer, m_rawBufferCH2, this);
+
+    m_dspPipeline = new DSPPipeline(m_rawBuffer, m_rawBufferCH2, 
+                                    m_ringBuffer, m_ringBufferCH2, this);
+    connect(m_dspPipeline, &DSPPipeline::fftDataReady, this, &MainWindow::onFftDataReady);
 
     m_renderTimer = new QTimer(this);
     connect(m_renderTimer, &QTimer::timeout, this, &MainWindow::updatePlot);
 
-    ui->grafica->addGraph(); // CH1
-    ui->grafica->graph(0)->setPen(QPen(Qt::green)); 
-    ui->grafica->addGraph(); // CH2
-    ui->grafica->graph(1)->setPen(QPen(Qt::yellow)); 
+    ui->grafica->addGraph(); // CH1 RAW (0)
+    ui->grafica->graph(0)->setPen(QPen(Qt::darkGreen)); 
+    ui->grafica->addGraph(); // CH2 RAW (1)
+    ui->grafica->graph(1)->setPen(QPen(Qt::darkYellow)); 
+    
+    ui->grafica->addGraph(); // CH1 FILT (2)
+    ui->grafica->graph(2)->setPen(QPen(Qt::green, 1.5)); 
+    ui->grafica->addGraph(); // CH2 FILT (3)
+    ui->grafica->graph(3)->setPen(QPen(Qt::yellow, 1.5)); 
 
     ui->grafica->xAxis->setLabel("Time (s)");
     ui->grafica->yAxis->setLabel("Voltage (V)");
     ui->grafica->yAxis->setRange(0, 5.5);
+
+    m_fftPlot->addGraph();
+    m_fftPlot->graph(0)->setPen(QPen(Qt::magenta));
+    m_fftPlot->addGraph();
+    m_fftPlot->graph(1)->setPen(QPen(Qt::cyan));
+    m_fftPlot->xAxis->setLabel("Frequency (Hz)");
+    m_fftPlot->yAxis->setLabel("Magnitude (dB)");
+    m_fftPlot->yAxis->setRange(-60, 60);
 
     QPen gridPen;
     gridPen.setStyle(Qt::SolidLine);
@@ -37,6 +71,9 @@ MainWindow::MainWindow(QWidget *parent)
     ui->grafica->yAxis->grid()->setPen(gridPen);
     ui->grafica->xAxis->grid()->setAntialiased(true);
     ui->grafica->yAxis->grid()->setAntialiased(true);
+    
+    m_fftPlot->xAxis->grid()->setPen(gridPen);
+    m_fftPlot->yAxis->grid()->setPen(gridPen);
 
     v_cursor = new QCPItemLine(ui->grafica);
     v_cursor->setPen(QPen(Qt::red, 1, Qt::DashLine));
@@ -65,11 +102,19 @@ MainWindow::MainWindow(QWidget *parent)
     on_dialTimeDiv_valueChanged(ui->dialTimeDiv->value());
     on_dialVoltsDiv_valueChanged(ui->dialVoltsDiv->value());
     on_dialYOffset_valueChanged(ui->dialYOffset->value());
+
+    ui->comboWindowType->setCurrentIndex(1); // Hanning
 }
 
 MainWindow::~MainWindow()
 {
+    if (m_dspPipeline) {
+        m_dspPipeline->stop();
+        delete m_dspPipeline;
+    }
     delete m_serialHandler;
+    delete m_rawBuffer;
+    delete m_rawBufferCH2;
     delete m_ringBuffer;
     delete m_ringBufferCH2;
     delete ui;
@@ -120,19 +165,22 @@ void MainWindow::updatePlot()
     
     bool dualChannel = m_pConfigDlg && m_pConfigDlg->isDualChannel();
     
-    std::vector<double> incomingRaw = m_ringBuffer->getAndClear();
-    std::vector<double> incomingRaw2 = m_ringBufferCH2->getAndClear();
+    std::vector<double> incomingCH1 = m_ringBuffer->getAndClear();
+    std::vector<double> incomingCH2 = m_ringBufferCH2->getAndClear();
 
     if (m_isPaused) {
         ui->grafica->replot();
         return;
     }
-    if (incomingRaw.empty()) {
+    if (incomingCH1.empty()) {
         ui->grafica->replot();
         return;
     }
     
-    m_totalSamplesReceived += incomingRaw.size();
+    int numSamples = incomingCH1.size() / 2;
+    int numSamples2 = incomingCH2.size() / 2;
+    m_totalSamplesReceived += numSamples;
+    
     qint64 elapsedMs = m_sampleTimer.elapsed();
     
     // Update average sample rate every 500ms
@@ -156,6 +204,13 @@ void MainWindow::updatePlot()
     }
     const double TIME_STEP = 1.0 / sampleRate;
 
+    if (m_dspPipeline) {
+        m_dspPipeline->setSampleRate(sampleRate);
+    }
+
+    bool isFiltEnabled = ui->checkEnableMA->isChecked() || ui->checkEnableFIR->isChecked();
+    ui->grafica->graph(2)->setVisible(isFiltEnabled);
+    if (dualChannel) ui->grafica->graph(3)->setVisible(isFiltEnabled);
 
     QString trigModeStr = ui->comboTrigMode->currentText();
     bool isRolling = (trigModeStr == "Rolling");
@@ -164,25 +219,54 @@ void MainWindow::updatePlot()
         if (m_triggerState != ROLLING) {
             m_triggerState = ROLLING;
             ui->grafica->graph(0)->data()->clear();
-            if (dualChannel) ui->grafica->graph(1)->data()->clear();
+            ui->grafica->graph(2)->data()->clear();
+            if (dualChannel) {
+                ui->grafica->graph(1)->data()->clear();
+                ui->grafica->graph(3)->data()->clear();
+            }
             m_currentTime = 0;
         }
         
-        for (size_t i = 0; i < incomingRaw.size(); ++i) {
+        QVector<double> t_keys(numSamples);
+        QVector<double> raw1(numSamples);
+        QVector<double> filt1(numSamples);
+        for (int i = 0; i < numSamples; ++i) {
             m_currentTime += TIME_STEP;
-            ui->grafica->graph(0)->addData(m_currentTime, incomingRaw[i]);
-            if (dualChannel && i < incomingRaw2.size()) {
-                ui->grafica->graph(1)->addData(m_currentTime, incomingRaw2[i]);
-            }
+            t_keys[i] = m_currentTime;
+            raw1[i] = incomingCH1[i * 2];
+            filt1[i] = incomingCH1[i * 2 + 1];
         }
         
-        if (!dualChannel) {
+        ui->grafica->graph(0)->addData(t_keys, raw1);
+        if (isFiltEnabled) {
+            ui->grafica->graph(2)->addData(t_keys, filt1);
+        }
+        
+        if (dualChannel && numSamples2 > 0) {
+            QVector<double> t_keys2(numSamples2);
+            QVector<double> raw2(numSamples2);
+            QVector<double> filt2(numSamples2);
+            double tempTime = m_currentTime - numSamples * TIME_STEP;
+            for (int i = 0; i < numSamples2; ++i) {
+                tempTime += TIME_STEP;
+                t_keys2[i] = tempTime;
+                raw2[i] = incomingCH2[i * 2];
+                filt2[i] = incomingCH2[i * 2 + 1];
+            }
+            ui->grafica->graph(1)->addData(t_keys2, raw2);
+            if (isFiltEnabled) {
+                ui->grafica->graph(3)->addData(t_keys2, filt2);
+            }
+        } else if (!dualChannel) {
             ui->grafica->graph(1)->data()->clear();
+            ui->grafica->graph(3)->data()->clear();
         }
         
         ui->grafica->graph(0)->data()->removeBefore(m_currentTime - windowSize * 1.5);
+        ui->grafica->graph(2)->data()->removeBefore(m_currentTime - windowSize * 1.5);
         if (dualChannel) {
             ui->grafica->graph(1)->data()->removeBefore(m_currentTime - windowSize * 1.5);
+            ui->grafica->graph(3)->data()->removeBefore(m_currentTime - windowSize * 1.5);
         }
         
         ui->grafica->xAxis->setRange(m_currentTime - windowSize, m_currentTime);
@@ -193,8 +277,8 @@ void MainWindow::updatePlot()
         // Trigger Mode
         if (m_triggerState == ROLLING) {
             m_triggerState = WAITING;
-            m_trigX1.clear(); m_trigY1.clear();
-            m_trigX2.clear(); m_trigY2.clear();
+            m_trigX1.clear(); m_trigY1.clear(); m_trigY1Filt.clear();
+            m_trigX2.clear(); m_trigY2.clear(); m_trigY2Filt.clear();
             m_samplesWaited = 0;
         }
         
@@ -205,15 +289,16 @@ void MainWindow::updatePlot()
         
         bool frameComplete = false;
         
-        for (size_t i = 0; i < incomingRaw.size(); ++i) {
-            double val = incomingRaw[i];
+        for (int i = 0; i < numSamples; ++i) {
+            double valRaw = incomingCH1[i * 2];
+            double valFilt = incomingCH1[i * 2 + 1];
             
             if (m_triggerState == WAITING) {
                 bool triggered = false;
                 
-                if (isRising && m_lastTriggerVolt < trigLevel && val >= trigLevel) {
+                if (isRising && m_lastTriggerVolt < trigLevel && valRaw >= trigLevel) {
                     triggered = true;
-                } else if (!isRising && m_lastTriggerVolt > trigLevel && val <= trigLevel) {
+                } else if (!isRising && m_lastTriggerVolt > trigLevel && valRaw <= trigLevel) {
                     triggered = true;
                 }
                 
@@ -227,18 +312,21 @@ void MainWindow::updatePlot()
                 
                 if (triggered) {
                     m_triggerState = COLLECTING;
-                    m_trigX1.clear(); m_trigY1.clear();
-                    m_trigX2.clear(); m_trigY2.clear();
+                    m_trigX1.clear(); m_trigY1.clear(); m_trigY1Filt.clear();
+                    m_trigX2.clear(); m_trigY2.clear(); m_trigY2Filt.clear();
                     m_samplesCollected = 0;
                 }
             }
             
             if (m_triggerState == COLLECTING) {
                 m_trigX1.append(m_samplesCollected * TIME_STEP);
-                m_trigY1.append(val);
-                if (dualChannel && i < incomingRaw2.size()) {
+                m_trigY1.append(valRaw);
+                m_trigY1Filt.append(valFilt);
+
+                if (dualChannel && i < numSamples2) {
                     m_trigX2.append(m_samplesCollected * TIME_STEP);
-                    m_trigY2.append(incomingRaw2[i]);
+                    m_trigY2.append(incomingCH2[i * 2]);
+                    m_trigY2Filt.append(incomingCH2[i * 2 + 1]);
                 }
                 
                 m_samplesCollected++;
@@ -247,15 +335,27 @@ void MainWindow::updatePlot()
                     break;
                 }
             }
-            m_lastTriggerVolt = val;
+            m_lastTriggerVolt = valRaw;
         }
         
         if (frameComplete) {
             ui->grafica->graph(0)->setData(m_trigX1, m_trigY1);
+            if (isFiltEnabled) {
+                ui->grafica->graph(2)->setData(m_trigX1, m_trigY1Filt);
+            } else {
+                ui->grafica->graph(2)->data()->clear();
+            }
+
             if (dualChannel) {
                 ui->grafica->graph(1)->setData(m_trigX2, m_trigY2);
+                if (isFiltEnabled) {
+                    ui->grafica->graph(3)->setData(m_trigX2, m_trigY2Filt);
+                } else {
+                    ui->grafica->graph(3)->data()->clear();
+                }
             } else {
                 ui->grafica->graph(1)->data()->clear();
+                ui->grafica->graph(3)->data()->clear();
             }
             ui->grafica->xAxis->setRange(0, windowSize);
             ui->grafica->replot();
@@ -280,13 +380,11 @@ void MainWindow::updateMeasurements() {
     
     double max_v = it->value;
     double min_v = it->value;
-    int count = 0;
     
     for (auto i = it; i != end; ++i) {
         double v = i->value;
         if (v > max_v) max_v = v;
         if (v < min_v) min_v = v;
-        count++;
     }
     
     double mid = (max_v + min_v) / 2.0;
@@ -353,6 +451,12 @@ void MainWindow::on_btnConnect_clicked()
 
     if (port->isOpen()) {
         m_isConnected = true;
+        
+        m_dspPipeline->setSampleRate(baud);
+        m_dspPipeline->setVRef(m_pConfigDlg ? m_pConfigDlg->getVRef() : 5.0);
+        m_dspPipeline->setDualChannel(m_pConfigDlg ? m_pConfigDlg->isDualChannel() : false);
+        m_dspPipeline->start();
+
         m_renderTimer->start();
         m_currentTime=0.0;
         m_plotData.clear();
@@ -379,6 +483,9 @@ void MainWindow::on_btnConnect_clicked()
 void MainWindow::on_btnDisconnect_clicked()
 {
     m_serialHandler->disconnectPort();
+    if (m_dspPipeline) {
+        m_dspPipeline->stop();
+    }
     m_renderTimer->stop();
     m_isConnected = false;
     ui->btnConnect->setEnabled(true);
@@ -512,3 +619,67 @@ void MainWindow::on_dialYOffset_valueChanged(int value)
     double offset = value * 0.1;
     ui->label_offset->setText(QString("Offset: %1 V").arg(offset, 0, 'f', 2));
 }
+
+void MainWindow::on_checkEnableMA_stateChanged(int arg1)
+{
+    if (m_dspPipeline) {
+        m_dspPipeline->setEnableMovingAverage(arg1 != 0, ui->spinMASize->value());
+    }
+}
+
+void MainWindow::on_spinMASize_valueChanged(int arg1)
+{
+    if (m_dspPipeline && ui->checkEnableMA->isChecked()) {
+        m_dspPipeline->setEnableMovingAverage(true, arg1);
+    }
+}
+
+void MainWindow::on_checkEnableFIR_stateChanged(int arg1)
+{
+    if (m_dspPipeline) {
+        m_dspPipeline->setEnableFIR(arg1 != 0);
+    }
+}
+
+void MainWindow::on_checkEnableFFT_stateChanged(int arg1)
+{
+    if (m_dspPipeline) {
+        m_dspPipeline->setEnableFFT(arg1 != 0);
+    }
+    if (arg1 == 0) {
+        m_fftPlot->graph(0)->data()->clear();
+        if (m_fftPlot->graphCount() > 1) {
+            m_fftPlot->graph(1)->data()->clear();
+        }
+        m_fftPlot->replot();
+        m_fftWindow->hide();
+    } else {
+        m_fftWindow->show();
+    }
+}
+
+void MainWindow::on_comboWindowType_currentIndexChanged(int index)
+{
+    if (m_dspPipeline) {
+        m_dspPipeline->setWindowType(static_cast<DSPPipeline::WindowType>(index));
+    }
+}
+
+void MainWindow::onFftDataReady(QVector<double> freqs, QVector<double> magCH1, QVector<double> magCH2)
+{
+    if (!m_fftWindow->isVisible()) return; // Only draw if visible
+
+    if (!magCH1.isEmpty()) {
+        m_fftPlot->graph(0)->setData(freqs, magCH1);
+    }
+    if (!magCH2.isEmpty() && m_fftPlot->graphCount() > 1) {
+        m_fftPlot->graph(1)->setData(freqs, magCH2);
+    }
+
+    if (!freqs.isEmpty()) {
+        m_fftPlot->xAxis->setRange(0, std::min(freqs.last(), 100000.0));
+    }
+    
+    m_fftPlot->replot();
+}
+

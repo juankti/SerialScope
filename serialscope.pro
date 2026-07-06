@@ -17,7 +17,9 @@ SOURCES += \
     src/cursordata.cpp \
     src/ringbuffer.cpp \
     src/qcustomplot.cpp\
-    src/serialhandler.cpp
+    src/serialhandler.cpp \
+    src/rawringbuffer.cpp \
+    src/dsppipeline.cpp
 
 HEADERS += \
     include/mainwindow.h \
@@ -29,7 +31,10 @@ HEADERS += \
     include/exportdlg.h \
     include/cursordata.h \
     include/ringbuffer.h \
-    include/serialhandler.h
+    include/serialhandler.h \
+    include/rawringbuffer.h \
+    include/dsppipeline.h \
+    include/pocketfft_hdronly.h
 
 FORMS += \
     ui/MainWindow.ui \

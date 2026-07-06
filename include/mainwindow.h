@@ -10,7 +10,9 @@
 #include "cursordata.h"
 #include "exportdlg.h"
 #include "ringbuffer.h"
-#include "serialhandler.h"
+#include "rawringbuffer.h"
+#include "SerialHandler.h"
+#include "dsppipeline.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -41,16 +43,32 @@ private slots:
     void on_dialVoltsDiv_valueChanged(int value);
     void on_dialYOffset_valueChanged(int value);
 
+    // DSP Slots
+    void on_checkEnableMA_stateChanged(int arg1);
+    void on_spinMASize_valueChanged(int arg1);
+    void on_checkEnableFIR_stateChanged(int arg1);
+    void on_checkEnableFFT_stateChanged(int arg1);
+    void on_comboWindowType_currentIndexChanged(int index);
+    void onFftDataReady(QVector<double> freqs, QVector<double> magCH1, QVector<double> magCH2);
+
 private:
     Ui::MainWindow *ui;
 
+    rawringbuffer* m_rawBuffer;
+    rawringbuffer* m_rawBufferCH2;
     ringbuffer* m_ringBuffer;
     ringbuffer* m_ringBufferCH2;
+    ringbuffer* m_ringBufferFilt;
+    ringbuffer* m_ringBufferCH2Filt;
     serialhandler* m_serialHandler;
+    DSPPipeline* m_dspPipeline;
     QTimer* m_renderTimer;
 
     portconfig* m_pConfigDlg=nullptr;
     graphoptions* m_pGraphOptDlg=nullptr;
+
+    QMainWindow* m_fftWindow;
+    QCustomPlot* m_fftPlot;
 
     cursordata* m_pCursorDlg=nullptr;
 
@@ -63,8 +81,12 @@ private:
     TriggerState m_triggerState = ROLLING;
     double m_lastTriggerVolt = 0.0;
     
-    QVector<double> m_trigX1, m_trigY1;
-    QVector<double> m_trigX2, m_trigY2;
+    QVector<double> m_trigX1;
+    QVector<double> m_trigY1;
+    QVector<double> m_trigX2;
+    QVector<double> m_trigY2;
+    QVector<double> m_trigY1Filt;
+    QVector<double> m_trigY2Filt;
     int m_samplesCollected = 0;
     int m_samplesNeeded = 0;
     int m_samplesWaited = 0;

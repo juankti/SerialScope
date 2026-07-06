@@ -11,6 +11,15 @@ void ringbuffer::push(double value){
     if (m_count < m_size) m_count++;
 }
 
+void ringbuffer::push(const double* data, size_t count) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    for (size_t i = 0; i < count; ++i) {
+        m_buffer[m_head] = data[i];
+        m_head = (m_head + 1) % m_size;
+        if (m_count < m_size) m_count++;
+    }
+}
+
 std::vector<double> ringbuffer::getLast(size_t count) const{
     std::lock_guard<std::mutex> lock(m_mutex);
     std::vector<double> result;

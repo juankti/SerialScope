@@ -8,6 +8,7 @@ class ringbuffer{
 public:
     explicit ringbuffer(size_t size);
     void push(double value);
+    void push(const double* data, size_t count);
     std::vector<double> getLast(size_t count) const;
     std::vector<double> getAll() const;
     std::vector<double> getAndClear();
