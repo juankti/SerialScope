@@ -25,7 +25,7 @@ It features a robust, custom-built DSP engine. Because the software is designed 
 This project emphasizes robust memory management, multithreading, and optimization:
 
 *   **Thread-Safe Ring Buffer:** Implements a custom, mutex-locked circular buffer tailored for high-frequency interrupts. It features an atomic `getAndClear()` routine to extract and reset memory blocks simultaneously, completely eliminating race conditions and data-drop during rapid thread context switching.
- **Interleaved Memory & Batch Rendering:** To achieve buttery-smooth 60 FPS rendering while plotting hundreds of thousands of data points, raw and filtered data are interleaved in memory (`[Raw, Filt, Raw, Filt]`). This guarantees perfect time-sync without complex mutex locks and allows injecting data into `QCustomPlot` through rapid vector batching rather than slow point-by-point loops.
+* **Interleaved Memory & Batch Rendering:** To achieve buttery-smooth 60 FPS rendering while plotting hundreds of thousands of data points, raw and filtered data are interleaved in memory (`[Raw, Filt, Raw, Filt]`). This guarantees perfect time-sync without complex mutex locks and allows injecting data into `QCustomPlot` through rapid vector batching rather than slow point-by-point loops.
 *   **Decoupled I/O & UI:** The `SerialHandler` runs entirely asynchronous to the main UI. Data is safely pushed into the ring buffer via serial interrupts, while a dedicated `QTimer` acts as a rendering orchestrator, pulling chunks of data at fixed intervals. 
 *   **Raw Binary Protocol:** By transmitting raw 8-bit values (`0x00` - `0xFF`) instead of formatted strings (e.g., `"1023\n"`), the system cuts communication overhead by more than 75%. The software dynamically scales these 8-bit values back to physical voltages based on user-defined reference parameters.
 
@@ -34,8 +34,9 @@ This project emphasizes robust memory management, multithreading, and optimizati
 Instead of using string-based printing (like `Serial.print()`), the MCU must send the raw 8-bit ADC readings directly over the serial port. The baud rate must then be matched in the software settings and data will instantly appear on the grid.
 
 ### Acknowledgments & Third-Party Libraries
-* **[PocketFFT](https://gitlab.mpcdf.mpg.de/mtr/pocketfft):** The Fast Fourier Transform calculations in this software are powered by `pocketfft` (C++ version), authored by Martin Reinecke. It was chosen for its outstanding performance and lightweight header-only implementation.
+* **[PocketFFT](https://github.com/mreineck/pocketfft):** The Fast Fourier Transform calculations in this software are powered by `pocketfft` (C++ version), authored by Martin Reinecke. It was chosen for its outstanding performance and lightweight header-only implementation.
 * **[QCustomPlot](https://www.qcustomplot.com/):** Used for the high-performance plotting and rendering of the oscilloscope graphs.
 
 ## Example
+Rolling mode:
 <img width="800" height="450" alt="rolling" src="https://github.com/user-attachments/assets/2b33c496-2fe3-4a8b-a60c-4291cc296ebc" />
