@@ -3,6 +3,7 @@
 
 #include <QMainWindow>
 #include <QTimer>
+#include <QElapsedTimer>
 #include <QSerialPort>
 #include "portconfig.h"
 #include "graphoptions.h"
@@ -36,6 +37,10 @@ private slots:
     void updatePlot();
     void on_checkCursors_checkStateChanged(const Qt::CheckState &arg1);
 
+    void on_dialTimeDiv_valueChanged(int value);
+    void on_dialVoltsDiv_valueChanged(int value);
+    void on_dialYOffset_valueChanged(int value);
+
 private:
     Ui::MainWindow *ui;
 
@@ -62,6 +67,11 @@ private:
     QVector<double> m_trigX2, m_trigY2;
     int m_samplesCollected = 0;
     int m_samplesNeeded = 0;
+    int m_samplesWaited = 0;
+
+    QElapsedTimer m_sampleTimer;
+    long long m_totalSamplesReceived = 0;
+    double m_measuredSampleRate = 0.0;
 
 
     QCPItemStraightLine* m_cursors[2];

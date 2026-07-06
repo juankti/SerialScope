@@ -9,8 +9,8 @@ MainWindow::MainWindow(QWidget *parent)
     , m_isConnected(false)
 {
     ui->setupUi(this);
-    ui->grafica->setInteraction(QCP::iRangeDrag,false);
-    ui->grafica->setInteraction(QCP::iRangeZoom,true);
+    ui->grafica->setInteraction(QCP::iRangeDrag, false);
+    ui->grafica->setInteraction(QCP::iRangeZoom, false);
 
     m_ringBuffer = new ringbuffer(100000);
     m_ringBufferCH2 = new ringbuffer(100000);
@@ -60,6 +60,11 @@ MainWindow::MainWindow(QWidget *parent)
     
     // Connect Pause button
     connect(ui->btnPause, &QPushButton::clicked, this, &MainWindow::on_btnPause_clicked);
+
+    // Initialize dial labels
+    on_dialTimeDiv_valueChanged(ui->dialTimeDiv->value());
+    on_dialVoltsDiv_valueChanged(ui->dialVoltsDiv->value());
+    on_dialYOffset_valueChanged(ui->dialYOffset->value());
 }
 
 MainWindow::~MainWindow()
@@ -74,9 +79,17 @@ MainWindow::~MainWindow()
 void MainWindow::updatePlot()
 {
     // View settings
-    QString tdivStr = ui->comboTimeDiv->currentText();
+    QStringList timeOptions = {"1 us", "2 us", "5 us", "10 us", "20 us", "50 us", "100 us", "200 us", "500 us", "1 ms", "2 ms", "5 ms", "10 ms", "20 ms", "50 ms", "100 ms", "200 ms", "500 ms", "1 s"};
+    QString tdivStr = timeOptions[qBound(0, ui->dialTimeDiv->value(), timeOptions.size() - 1)];
+
     double windowSize = 2.0; // Default
-    if (tdivStr == "100 us") windowSize = 0.0001 * 10;
+    if (tdivStr == "1 us") windowSize = 0.000001 * 10;
+    else if (tdivStr == "2 us") windowSize = 0.000002 * 10;
+    else if (tdivStr == "5 us") windowSize = 0.000005 * 10;
+    else if (tdivStr == "10 us") windowSize = 0.00001 * 10;
+    else if (tdivStr == "20 us") windowSize = 0.00002 * 10;
+    else if (tdivStr == "50 us") windowSize = 0.00005 * 10;
+    else if (tdivStr == "100 us") windowSize = 0.0001 * 10;
     else if (tdivStr == "200 us") windowSize = 0.0002 * 10;
     else if (tdivStr == "500 us") windowSize = 0.0005 * 10;
     else if (tdivStr == "1 ms") windowSize = 0.001 * 10;
@@ -90,7 +103,9 @@ void MainWindow::updatePlot()
     else if (tdivStr == "500 ms") windowSize = 0.500 * 10;
     else if (tdivStr == "1 s") windowSize = 1.0 * 10;
     
-    QString vdivStr = ui->comboVoltsDiv->currentText();
+    QStringList voltsOptions = {"0.1 V", "0.2 V", "0.5 V", "1 V", "2 V"};
+    QString vdivStr = voltsOptions[qBound(0, ui->dialVoltsDiv->value(), voltsOptions.size() - 1)];
+
     double vdiv = 1.0;
     if (vdivStr.startsWith("0.1")) vdiv = 0.1;
     else if (vdivStr.startsWith("0.2")) vdiv = 0.2;
@@ -98,7 +113,7 @@ void MainWindow::updatePlot()
     else if (vdivStr.startsWith("1")) vdiv = 1.0;
     else if (vdivStr.startsWith("2")) vdiv = 2.0;
     
-    double offset = ui->spinYOffset->value();
+    double offset = ui->dialYOffset->value() * 0.1;
     double vref = m_pConfigDlg ? m_pConfigDlg->getVRef() : 5.0;
     double top = vref - offset;
     ui->grafica->yAxis->setRange(top - vdiv * 8, top);
@@ -117,10 +132,27 @@ void MainWindow::updatePlot()
         return;
     }
     
-    float sampleRate = 1000000.0/10.0; // Default
-    if (m_pConfigDlg) {
-        sampleRate = m_pConfigDlg->getBaud() / 10.0;
-        if (dualChannel) sampleRate /= 2.0;
+    m_totalSamplesReceived += incomingRaw.size();
+    qint64 elapsedMs = m_sampleTimer.elapsed();
+    
+    // Update average sample rate every 500ms
+    if (elapsedMs > 500) {
+        if (m_totalSamplesReceived > 0) {
+            m_measuredSampleRate = (m_totalSamplesReceived * 1000.0) / elapsedMs;
+        }
+        m_sampleTimer.restart();
+        m_totalSamplesReceived = 0;
+    }
+    
+    double sampleRate = m_measuredSampleRate; 
+    
+    // Fallback to baud rate calculation for the first 500ms or if no data
+    if (sampleRate < 1.0) {
+        sampleRate = 1000000.0 / 10.0; // Default
+        if (m_pConfigDlg) {
+            sampleRate = m_pConfigDlg->getBaud() / 10.0;
+            if (dualChannel) sampleRate /= 2.0;
+        }
     }
     const double TIME_STEP = 1.0 / sampleRate;
 
@@ -163,6 +195,7 @@ void MainWindow::updatePlot()
             m_triggerState = WAITING;
             m_trigX1.clear(); m_trigY1.clear();
             m_trigX2.clear(); m_trigY2.clear();
+            m_samplesWaited = 0;
         }
         
         m_samplesNeeded = (int)(windowSize / TIME_STEP);
@@ -177,12 +210,19 @@ void MainWindow::updatePlot()
             
             if (m_triggerState == WAITING) {
                 bool triggered = false;
-                if (isAuto && m_trigX1.size() == 0) {
-                    triggered = true;
-                } else if (isRising && m_lastTriggerVolt < trigLevel && val >= trigLevel) {
+                
+                if (isRising && m_lastTriggerVolt < trigLevel && val >= trigLevel) {
                     triggered = true;
                 } else if (!isRising && m_lastTriggerVolt > trigLevel && val <= trigLevel) {
                     triggered = true;
+                }
+                
+                if (!triggered && isAuto) {
+                    m_samplesWaited++;
+                    // 50 ms timeout for auto-trigger
+                    if (m_samplesWaited > (sampleRate * 0.05)) {
+                        triggered = true;
+                    }
                 }
                 
                 if (triggered) {
@@ -223,6 +263,7 @@ void MainWindow::updatePlot()
             updateMeasurements();
             
             m_triggerState = WAITING; // Ready for next frame
+            m_samplesWaited = 0;
         }
     }
 }
@@ -258,7 +299,7 @@ void MainWindow::updateMeasurements() {
     for (auto i = it; i != end; ++i) {
         double v = i->value;
         double t = i->key;
-        if (prev_v <= mid && v > mid) {
+        if ((prev_v <= mid && v > mid) || (prev_v >= mid && v < mid)) {
             crossings++;
             if (first_cross_time < 0) first_cross_time = t;
             last_cross_time = t;
@@ -270,9 +311,10 @@ void MainWindow::updateMeasurements() {
     ui->labVmin->setText(QString("Vmin: %1 V").arg(min_v, 0, 'f', 2));
     ui->labVpp->setText(QString("Vpp: %1 V").arg(max_v - min_v, 0, 'f', 2));
     
-    if (crossings > 1 && last_cross_time > first_cross_time) {
+    if (crossings >= 2 && last_cross_time > first_cross_time) {
         double actual_span = last_cross_time - first_cross_time;
-        double freq = (crossings - 1) / actual_span;
+        double half_period_avg = actual_span / (crossings - 1);
+        double freq = 1.0 / (half_period_avg * 2.0);
         ui->labFreq->setText(QString("Freq: %1 Hz").arg(freq, 0, 'f', 1));
     } else {
         ui->labFreq->setText("Freq: -- Hz");
@@ -319,6 +361,10 @@ void MainWindow::on_btnConnect_clicked()
         
         m_triggerState = WAITING;
 
+        m_sampleTimer.start();
+        m_totalSamplesReceived = 0;
+        m_measuredSampleRate = 0.0;
+
         ui->btnConnect->setEnabled(false);
         ui->btnDisconnect->setEnabled(true);
         ui->btnSettings->setEnabled(false);
@@ -337,6 +383,7 @@ void MainWindow::on_btnDisconnect_clicked()
     m_isConnected = false;
     ui->btnConnect->setEnabled(true);
     ui->btnDisconnect->setEnabled(false);
+    ui->btnSettings->setEnabled(true);
 }
 
 void MainWindow::on_btnGraphOptions_clicked()
@@ -417,11 +464,11 @@ void MainWindow::onGraphClicked(QMouseEvent *event)
 
     qDebug() << "Cursor" << m_cursorIdx + 1 << ": Time=" << xVal << "s, Volt=" << voltage << "V";
 
-    if (m_cursorIdx == 1 && !m_pCursorDlg) {
+    if (!m_pCursorDlg) {
         m_pCursorDlg = new cursordata(this);
     }
 
-    if (m_pCursorDlg && m_cursorIdx == 1 && !m_pCursorDlg->isVisible()) {
+    if (m_cursorIdx == 1 && !m_pCursorDlg->isVisible()) {
         m_pCursorDlg->show();
     }
 
@@ -444,3 +491,24 @@ void MainWindow::on_checkCursors_checkStateChanged(const Qt::CheckState & /*arg1
     }
 }
 
+void MainWindow::on_dialTimeDiv_valueChanged(int value)
+{
+    QStringList timeOptions = {"1 us", "2 us", "5 us", "10 us", "20 us", "50 us", "100 us", "200 us", "500 us", "1 ms", "2 ms", "5 ms", "10 ms", "20 ms", "50 ms", "100 ms", "200 ms", "500 ms", "1 s"};
+    if (value >= 0 && value < timeOptions.size()) {
+        ui->label_tdiv->setText("Time: " + timeOptions[value]);
+    }
+}
+
+void MainWindow::on_dialVoltsDiv_valueChanged(int value)
+{
+    QStringList voltsOptions = {"0.1 V", "0.2 V", "0.5 V", "1 V", "2 V"};
+    if (value >= 0 && value < voltsOptions.size()) {
+        ui->label_vdiv->setText("Volts: " + voltsOptions[value]);
+    }
+}
+
+void MainWindow::on_dialYOffset_valueChanged(int value)
+{
+    double offset = value * 0.1;
+    ui->label_offset->setText(QString("Offset: %1 V").arg(offset, 0, 'f', 2));
+}

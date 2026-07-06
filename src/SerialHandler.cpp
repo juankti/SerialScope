@@ -22,7 +22,8 @@ void serialhandler::connectPort(QString portname,int baudrate){
     m_serial.setStopBits(QSerialPort::OneStop);
     m_serial.setFlowControl(QSerialPort::NoFlowControl);
 
-    if(m_serial.open(QIODevice::ReadOnly)){
+    if(m_serial.open(QIODevice::ReadWrite)){
+        m_serial.setDataTerminalReady(true);
         if (m_bufferCH1) m_bufferCH1->clear();
         if (m_bufferCH2) m_bufferCH2->clear();
         m_ch1Next = true;
